@@ -21,12 +21,9 @@ package io.klogging.sending
 import io.klogging.events.LogEvent
 import io.klogging.internal.trace
 import io.klogging.internal.warn
-import io.klogging.rendering.evalTemplate
-import io.klogging.rendering.serializeMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Instant
 import java.io.IOException
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
@@ -50,53 +47,20 @@ public actual fun splunkHec(endpoint: SplunkEndpoint): EventSender = { batch ->
 private fun sendToSplunk(endpoint: SplunkEndpoint, batch: List<LogEvent>) {
     val conn = hecConnection(endpoint)
     try {
-        trace("Sending ${batch.size} events in context ${Thread.currentThread().name}")
+        trace("Splunk", "Sending events to Splunk in context ${Thread.currentThread().name}")
         conn.outputStream.use { it.write(splunkBatch(endpoint, batch).toByteArray()) }
         val response = conn.inputStream.use { String(it.readAllBytes()) }
         if (conn.responseCode >= 400)
-            warn("Error response ${conn.responseCode} sending event to Splunk: $response")
+            warn("Splunk", "Error response ${conn.responseCode} sending event to Splunk: $response")
     } catch (e: IOException) {
-        warn("Exception sending message to Splunk: $e")
+        warn("Splunk", "Exception sending message to Splunk: $e")
     }
-}
-
-private fun splunkBatch(endpoint: SplunkEndpoint, batch: List<LogEvent>): String = batch
-    .map { splunkEvent(endpoint, it) }
-    .joinToString("\n")
-
-private const val TIME_MARKER = "XXX--TIME-MARKER--XXX"
-
-private val Instant.decimalSeconds
-    get() = "%d.%09d".format(epochSeconds, nanosecondsOfSecond)
-
-/**
- * Convert a [LogEvent] to a JSON-formatted string for Splunk
- */
-private fun splunkEvent(endpoint: SplunkEndpoint, event: LogEvent): String {
-    val eventMap: Map<String, Any?> = (
-        mapOf(
-            "logger" to event.logger,
-            "level" to event.level.name,
-            "context" to event.context,
-            "stackTrace" to event.stackTrace,
-            "message" to event.evalTemplate()
-        ) + event.items
-        ).filterValues { it != null }
-    val splunkMap: MutableMap<String, Any?> = mutableMapOf(
-        "time" to TIME_MARKER, // Replace later
-        "index" to endpoint.index,
-        "sourcetype" to endpoint.sourceType,
-        "host" to event.host,
-        "event" to eventMap,
-    )
-    return serializeMap(splunkMap)
-        .replace(""""$TIME_MARKER"""", event.timestamp.decimalSeconds)
 }
 
 private fun hecConnection(endpoint: SplunkEndpoint): HttpsURLConnection {
     val conn =
         URL("${endpoint.hecUrl}/services/collector/event").openConnection() as HttpsURLConnection
-    if (!endpoint.checkCertificate)
+    if (endpoint.checkCertificate != "true")
         TrustModifier.relaxHostChecking(conn)
     conn.requestMethod = "POST"
     conn.setRequestProperty("Content-Type", "application/json")

@@ -22,35 +22,57 @@ import io.klogging.Level
 import io.klogging.Level.FATAL
 import io.klogging.Level.TRACE
 
+/** Function type for matching a logger name. */
+internal typealias Matcher = (String) -> Boolean
+
+internal val MATCH_ALL: Matcher = { true }
+
 /**
  * Logging configuration with a logger name match and a list of level ranges that
  * maps to a list of sinks for each.
  */
 public class LoggingConfig {
-    /** Default matching is all logger names. */
-    internal val matchAllLoggers: String = ".*"
 
-    internal var nameMatch: Regex = Regex(matchAllLoggers)
+    internal var stopOnMatch: Boolean = false
     internal val ranges = mutableListOf<LevelRange>()
+
+    internal var nameMatcher: Matcher = MATCH_ALL
 
     /**
      * DSL function to specify that logger names should match from the specified base name.
      *
      * @param baseName match logger names from this base
+     * @param stopOnMatch stop using loggers after this one if it matches
      */
     @ConfigDsl
-    public fun fromLoggerBase(baseName: String) {
-        nameMatch = Regex("^$baseName.*")
+    public fun fromLoggerBase(baseName: String, stopOnMatch: Boolean = false) {
+        nameMatcher = { it.startsWith(baseName) }
+        this.stopOnMatch = stopOnMatch
     }
 
     /**
      * DSL function to specify that logger names should match this name exactly.
      *
      * @param exactName match this logger name exactly
+     * @param stopOnMatch stop using loggers after this one if it matches
      */
     @ConfigDsl
-    public fun exactLogger(exactName: String) {
-        nameMatch = Regex("^$exactName\$")
+    public fun exactLogger(exactName: String, stopOnMatch: Boolean = false) {
+        nameMatcher = { it == exactName }
+        this.stopOnMatch = stopOnMatch
+    }
+
+    /**
+     * DSL function to specify that logger names should match this regular
+     * expression pattern.
+     *
+     * @param pattern match logger names using this pattern
+     * @param stopOnMatch stop using loggers after this one if it matches
+     */
+    @ConfigDsl
+    public fun matchLogger(pattern: String, stopOnMatch: Boolean = false) {
+        nameMatcher = { Regex(pattern).matches(it) }
+        this.stopOnMatch = stopOnMatch
     }
 
     /**

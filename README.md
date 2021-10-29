@@ -23,6 +23,7 @@ implementation details will change** 🚧
 
 - [Goals](#goals)
 - [Quick start (JVM)](#quick-start-jvm)
+  - [Using snapshot builds](#using-snapshot-builds)
 - [Why another logging library?](#why-another-logging-library)
   - [Why not Logback or Log4j?](#why-not-logback-or-log4j)
   - [Why not KotlinLogging, Log4j Kotlin, etc.?](#why-not-kotlinlogging-log4j-kotlin-etc)
@@ -44,7 +45,7 @@ implementation details will change** 🚧
 1. Include Klogging in your project with Gradle:
 
    ```kotlin
-   implementation("io.klogging:klogging-jvm:0.3.1")
+   implementation("io.klogging:klogging-jvm:0.4.0")
    ```
 
    or Maven:
@@ -53,7 +54,7 @@ implementation details will change** 🚧
    <dependency>
      <groupId>io.klogging</groupId>
      <artifactId>klogging-jvm</artifactId>
-     <version>0.3.1</version>
+     <version>0.4.0</version>
    </dependency>
    ```
 
@@ -63,7 +64,7 @@ implementation details will change** 🚧
 
     ```kotlin
     fun main() = runBlocking {
-        loggingConfiguration { defaultConsole() }
+        loggingConfiguration { DEFAULT_CONSOLE() }
         // ...
     }
     ```
@@ -90,6 +91,24 @@ implementation details will change** 🚧
         }
     }
     ```
+   
+### Using snapshot builds
+
+If you want to use the latest snapshot builds, specify these in your `build.gradle.kts`:
+
+```kotlin
+repositories {
+    // ...
+    maven {
+        url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+    }
+}
+
+dependencies {
+    // ...
+    implementation("io.klogging:klogging-jvm:0.4.0-SNAPSHOT")
+}
+```
 
 ## Why another logging library?
 

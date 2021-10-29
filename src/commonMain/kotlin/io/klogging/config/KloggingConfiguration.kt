@@ -48,7 +48,7 @@ internal val defaultKloggingMinLogLevel: Level = try {
  */
 @ConfigDsl
 public fun loggingConfiguration(append: Boolean = false, block: KloggingConfiguration.() -> Unit) {
-    info("Setting configuration using the DSL with append=$append")
+    info("Configuration", "Setting configuration using the DSL with append=$append")
     val config = KloggingConfiguration()
     config.apply(block)
     config.validateSinks()
@@ -114,7 +114,7 @@ public class KloggingConfiguration {
 
     /** Calculate the minimum level of all level ranges in all configurations. */
     public fun minimumLevelOf(loggerName: String): Level = configs
-        .filter { it.nameMatch.matches(loggerName) }
+        .filter { it.nameMatcher(loggerName) }
         .flatMap { it.ranges }
         .minOfOrNull { it.minLevel } ?: NONE
 
@@ -125,7 +125,7 @@ public class KloggingConfiguration {
             .flatMap { it.sinkNames }
             .toSet()
         val extraSinks = loggingSinks - sinks.keys
-        extraSinks.forEach { warn("Sink `$it` was not defined and will be ignored") }
+        extraSinks.forEach { warn("Configuration", "Sink `$it` was not defined and will be ignored") }
     }
 
     /**

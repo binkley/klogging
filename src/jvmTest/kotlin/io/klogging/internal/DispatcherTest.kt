@@ -27,6 +27,7 @@ import io.klogging.config.DEFAULT_CONSOLE
 import io.klogging.config.loggingConfiguration
 import io.klogging.randomLevel
 import io.klogging.randomString
+import io.klogging.rendering.RENDER_ANSI
 import io.klogging.rendering.RENDER_SIMPLE
 import io.klogging.sending.STDERR
 import io.klogging.sending.STDOUT
@@ -90,6 +91,23 @@ internal class DispatcherTest : DescribeSpec({
                 Dispatcher.sinksFor("com.example.OtherThing\$Subclass", WARN) shouldHaveSize 0
             }
         }
+        describe("with regex logger name configuration") {
+            beforeTest {
+                loggingConfiguration {
+                    sink("console", RENDER_ANSI, STDOUT)
+                    logging {
+                        matchLogger("Level-[0-5]")
+                        fromMinLevel(DEBUG) { toSink("console") }
+                    }
+                }
+            }
+            it("returns no sinks when the logger name doesn’t match") {
+                Dispatcher.sinksFor("Level-6", WARN) shouldHaveSize 0
+            }
+            it("returns the sink when the logger name matches ") {
+                Dispatcher.sinksFor("Level-3", INFO) shouldHaveSize 1
+            }
+        }
         describe("with minimum level specification") {
             beforeTest {
                 loggingConfiguration {
@@ -111,6 +129,33 @@ internal class DispatcherTest : DescribeSpec({
             }
             it("returns the sinks when the level is above the configured level") {
                 Dispatcher.sinksFor(randomString(), ERROR) shouldHaveSize 2
+            }
+        }
+        describe("with stopOnMatch") {
+            beforeTest {
+                loggingConfiguration {
+                    sink("rest", RENDER_SIMPLE, STDOUT)
+                    sink("kord", RENDER_SIMPLE, STDOUT)
+                    sink("svc", RENDER_SIMPLE, STDOUT)
+                    logging {
+                        fromLoggerBase("dev.kord.rest", stopOnMatch = true)
+                        fromMinLevel(ERROR) { toSink("rest") }
+                    }
+                    logging {
+                        fromLoggerBase("dev.kord")
+                        fromMinLevel(DEBUG) { toSink("kord") }
+                    }
+                    logging {
+                        fromLoggerBase("dev.kord.service")
+                        fromMinLevel(INFO) { toSink("svc") }
+                    }
+                }
+            }
+            it("stops selecting sinks after matching a logger base with `stopOnMatch = true`") {
+                Dispatcher.sinksFor("dev.kord.rest.RestClient", ERROR) shouldHaveSize 1
+            }
+            it("keeps selecting sinks after not matching a logger base with `stopOnMatch = true`") {
+                Dispatcher.sinksFor("dev.kord.service.NikkyService", INFO) shouldHaveSize 2
             }
         }
     }

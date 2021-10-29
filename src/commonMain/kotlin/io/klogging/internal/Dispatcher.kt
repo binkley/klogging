@@ -47,7 +47,7 @@ internal object Dispatcher : CoroutineScope {
         sinksFor(logEvent.logger, logEvent.level)
             .forEach { sink ->
                 launch {
-                    debug("Forwarding event ${event.id} to ${sink.name}")
+                    trace("Dispatcher", "Dispatching event ${event.id} to ${sink.name}")
                     sink.forwardEvent(event)
                 }
             }
@@ -56,14 +56,24 @@ internal object Dispatcher : CoroutineScope {
     /**
      * Calculate the sinks for the specified logger and level.
      *
+     * Logging configurations are evaluated in the order they are specified.
+     * Matching stops on successful match if the `stopOnMatch` property is
+     * `true` (it is false by default).
+     *
      * @param loggerName name of the logger
      * @param level level at which to emit logs
      *
      * @return the list of [Sink]s for this logger at this level, which may be empty
      */
     internal fun sinksFor(loggerName: String, level: Level): List<Sink> {
+        var keepMatching = true
         val sinkNames = KloggingEngine.configs()
-            .filter { it.nameMatch.matches(loggerName) }
+            .filter { config ->
+                val matches = config.nameMatcher(loggerName)
+                (keepMatching && matches).also {
+                    keepMatching = keepMatching && !(matches && config.stopOnMatch)
+                }
+            }
             .flatMap { it.ranges }
             .filter { level in it }
             .flatMap { it.sinkNames }

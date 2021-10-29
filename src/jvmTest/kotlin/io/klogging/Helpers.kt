@@ -28,9 +28,10 @@ import io.klogging.sending.EventSender
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Instant
 import kotlin.random.Random
+import kotlin.random.nextUInt
 import kotlin.random.nextULong
 
-fun randomLoggerName() = Random.nextInt().toString(16)
+fun randomLoggerName() = Random.nextUInt().toString(16)
 
 /**
  * Random string to use in tests where the value is opaque.
@@ -43,7 +44,8 @@ fun randomLevel() = Level.values().random()
 fun logEvent(
     timestamp: Instant = timestampNow(),
     host: String = hostname,
-    name: String = randomLoggerName(),
+    logger: String = randomLoggerName(),
+    context: String? = null,
     level: Level = randomLevel(),
     message: String = randomString(),
     stackTrace: String? = null,
@@ -51,7 +53,8 @@ fun logEvent(
 ) = LogEvent(
     timestamp = timestamp,
     host = host,
-    logger = name,
+    logger = logger,
+    context = context,
     level = level,
     message = message,
     stackTrace = stackTrace,
@@ -61,11 +64,13 @@ fun logEvent(
 /** Crude way to help ensure coroutine processing is complete in tests. */
 suspend fun waitForSend(millis: Long = 50) = delay(millis)
 
+fun eventSaver(saved: MutableList<LogEvent>): EventSender =
+    { batch: List<LogEvent> -> saved.addAll(batch) }
+
 fun savedEvents(): MutableList<LogEvent> {
     val saved = mutableListOf<LogEvent>()
-    val eventSaver: EventSender = { batch: List<LogEvent> -> saved.addAll(batch) }
     loggingConfiguration {
-        sink("test", SinkConfiguration(eventSender = eventSaver))
+        sink("test", SinkConfiguration(eventSender = eventSaver(saved)))
         logging { fromMinLevel(TRACE) { toSink("test") } }
     }
     return saved

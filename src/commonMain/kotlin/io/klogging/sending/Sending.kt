@@ -24,7 +24,7 @@ import io.klogging.rendering.RenderString
 /** Functional type used for sending a string to a target somewhere. */
 public typealias SendString = suspend (String) -> Unit
 
-/** Function type for sending a log event somewhere. */
+/** Function type for sending a batch of log events somewhere. */
 public typealias EventSender = suspend (List<LogEvent>) -> Unit
 
 /** Convert a [RenderString] and [SendString] into an [EventSender]. */

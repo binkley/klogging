@@ -24,6 +24,8 @@ import io.klogging.Level.TRACE
 import io.klogging.internal.debug
 import io.klogging.internal.warn
 import io.klogging.rendering.RENDER_CLEF
+import io.klogging.sending.SplunkEndpoint
+import io.klogging.sending.splunkHec
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -50,6 +52,8 @@ public data class JsonConfiguration(
  * @property renderWith name of a built-in renderer
  * @property sendTo name of a built-in sender
  * @property seqServer URL of a [Seq](https://datalust.co/seq) log aggregation server
+ * @property splunkServer Splunk [HEC](https://docs.splunk.com/Documentation/Splunk/8.2.2/Data/HECExamples)
+ *                        endpoint configuration
  */
 @Serializable
 public data class JsonSinkConfiguration(
@@ -58,13 +62,16 @@ public data class JsonSinkConfiguration(
     @Deprecated("Use `sendTo` instead")
     val dispatchTo: String? = null,
     val seqServer: String? = null,
+    val splunkServer: SplunkEndpoint? = null,
 ) {
     internal fun toSinkConfiguration(): SinkConfiguration? {
+        if (splunkServer != null)
+            return SinkConfiguration(eventSender = splunkHec(splunkServer.evalEnv()))
         val renderer = BUILT_IN_RENDERERS[renderWith]
         if (seqServer != null)
             return seq(seqServer, renderer ?: RENDER_CLEF)
         if (dispatchTo != null)
-            warn("Please use `sendTo` in JSON config instead of `dispatchTo`, which has been deprecated")
+            warn("Configuration", "Please use `sendTo` in JSON config instead of `dispatchTo`, which has been deprecated")
         val sender = BUILT_IN_SENDERS[sendTo ?: dispatchTo]
         return if (renderer != null && sender != null) SinkConfiguration(renderer, sender)
         else null
@@ -75,16 +82,21 @@ public data class JsonSinkConfiguration(
 @Serializable
 public data class JsonLoggingConfig(
     val fromLoggerBase: String? = null,
+    val stopOnMatch: Boolean? = false,
     val exactLogger: String? = null,
+    val matchLogger: String? = null,
     val levelRanges: List<JsonLevelRange>,
 ) {
     internal fun toLoggingConfig(): LoggingConfig {
         val config = LoggingConfig()
         when {
-            // `exactLogger` has priority over `fromLoggerBase`
-            exactLogger != null -> config.exactLogger(exactLogger)
-            fromLoggerBase != null -> config.fromLoggerBase(fromLoggerBase)
-            // else will match all loggers by default
+            // `matchLogger` has priority over `exactLogger`, which
+            // has priority over `fromLoggerBase`,
+            // which has priority over `matchLogger`
+            exactLogger != null -> config.exactLogger(exactLogger, stopOnMatch ?: false)
+            fromLoggerBase != null -> config.fromLoggerBase(fromLoggerBase, stopOnMatch ?: false)
+            matchLogger != null -> config.matchLogger(matchLogger, stopOnMatch ?: false)
+            // else match all loggers by default
         }
         config.ranges.addAll(levelRanges.map { it.toLevelRange() })
         return config
@@ -129,7 +141,7 @@ internal fun readConfig(configJson: String): JsonConfiguration? =
     try {
         json.decodeFromString(configJson)
     } catch (ex: SerializationException) {
-        warn("Exception parsing JSON configuration", ex)
+        warn("JsonConfiguration", "Exception parsing JSON", ex)
         null
     }
 
@@ -144,13 +156,13 @@ public fun configureFromJson(configJson: String): KloggingConfiguration? =
 
             sinks.forEach { (key, value) ->
                 value.toSinkConfiguration()?.let {
-                    debug("Setting sink `$key` with $value")
+                    debug("JsonConfiguration", "Setting sink `$key` with $value")
                     config.sinks[key] = it
                 }
             }
 
             logging.forEach {
-                debug("Adding logging config $it")
+                debug("JsonConfiguration", "Adding logging config $it")
                 config.configs.add(it.toLoggingConfig())
             }
         }
